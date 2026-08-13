@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suricata IDS/IPS Security Dashboard</title>
+    <!-- Suricata Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="alternate icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22suricataGrad%22%20x1%3D%220%25%22%20y1%3D%220%25%22%20x2%3D%22100%25%22%20y2%3D%22100%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23FF5722%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23E64A19%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22shieldBg%22%20x1%3D%220%25%22%20y1%3D%220%25%22%20x2%3D%220%25%22%20y2%3D%22100%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%231E293B%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%230F172A%22%2F%3E%3C%2FlinearGradient%3E%3Cfilter%20id%3D%22glow%22%20x%3D%22-20%25%22%20y%3D%22-20%25%22%20width%3D%22140%25%22%20height%3D%22140%25%22%3E%3CfeGaussianBlur%20stdDeviation%3D%221.5%22%20result%3D%22blur%22%20%2F%3E%3CfeComposite%20in%3D%22SourceGraphic%22%20in2%3D%22blur%22%20operator%3D%22over%22%20%2F%3E%3C%2Ffilter%3E%3C%2Fdefs%3E%3Cpath%20d%3D%22M32%203%20L57%2012%20C57%2032%2046%2048%2032%2059%20C18%2048%207%2032%207%2012%20Z%22%20fill%3D%22url(%23shieldBg)%22%20stroke%3D%22url(%23suricataGrad)%22%20stroke-width%3D%222.5%22%2F%3E%3Cpath%20d%3D%22M32%2013%20C26.5%2013%2023%2016.5%2022%2020.5%20C20%2020.5%2018%2022%2018%2024.5%20C18%2027%2020%2028%2022%2028%20C23%2033.5%2026.5%2039%2032%2047%20C37.5%2039%2041%2033.5%2042%2028%20C44%2028%2046%2027%2046%2024.5%20C46%2022%2044%2020.5%2042%2020.5%20C41%2016.5%2037.5%2013%2032%2013%20Z%22%20fill%3D%22url(%23shieldBg)%22%20filter%3D%22url(%23glow)%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2223.5%22%20r%3D%222.8%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2223.5%22%20r%3D%221.3%22%20fill%3D%22%230F172A%22%2F%3E%3Ccircle%20cx%3D%2221%22%20cy%3D%2220.5%22%20r%3D%221.5%22%20fill%3D%22%230F172A%22%2F%3E%3Ccircle%20cx%3D%2243%22%20cy%3D%2220.5%22%20r%3D%221.5%22%20fill%3D%22%230F172A%22%2F%3E%3Cpath%20d%3D%22M32%2029%20L29.5%2027%20L34.5%2027%20Z%22%20fill%3D%22%230F172A%22%2F%3E%3C%2Fsvg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        cardbg: '#1e293b',
+                        bordercolor: '#334155'
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #f8fafc;
+            --text-main: #1e293b;
+            --card-bg: #ffffff;
+            --card-border: #e2e8f0;
+            --table-hover: rgba(241, 245, 249, 0.7);
+            --header-bg: #ffffff;
+            --subtext: #64748b;
+            --heading-text: #0f172a;
+            --input-bg: #f1f5f9;
+            --input-border: #cbd5e1;
+            --row-header: #f1f5f9;
+        }
+
+        .dark {
+            --bg-main: #0f172a;
+            --text-main: #e2e8f0;
+            --card-bg: #1e293b;
+            --card-border: #334155;
+            --table-hover: rgba(30, 41, 59, 0.5);
+            --header-bg: #1e293b;
+            --subtext: #94a3b8;
+            --heading-text: #ffffff;
+            --input-bg: #0f172a;
+            --input-border: #334155;
+            --row-header: rgba(30, 41, 59, 0.6);
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        .block-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 1rem;
+            padding: 1.25rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header-box {
+            background-color: var(--header-bg);
+            border-color: var(--card-border);
+        }
+
+        .subtext { color: var(--subtext); }
+        .heading-text { color: var(--heading-text); }
+        .custom-input {
+            background-color: var(--input-bg);
+            border-color: var(--input-border);
+            color: var(--heading-text);
+        }
+        .table-head-row {
+            background-color: var(--row-header);
+            border-color: var(--card-border);
+            color: var(--subtext);
+        }
+
+        .item-row {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+        }
+        .item-row:hover {
+            background-color: var(--table-hover);
+        }
+        .col-ip { flex: 0 0 45%; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 0.5rem; }
+        .col-reason { flex: 0 0 40%; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 0.5rem; }
+        .col-action { flex: 0 0 15%; max-width: 15%; text-align: right; }
+        .btn-action {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            font-size: 0.65rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .btn-action:hover { background-color: rgba(239, 68, 68, 0.2); }
+        .btn-suppress {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            font-size: 0.65rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .dark .btn-suppress { color: #fbbf24; }
+        .dark .btn-action { color: #f87171; }
+        .btn-suppress:hover { background-color: rgba(245, 158, 11, 0.2); }
+    </style>
+</head>
+<body class="font-sans min-h-screen">
+    <div class="flex flex-col min-h-screen">
+        <!-- Fixed Sticky Top Navigation & Stat Cards Header -->
+        <div class="sticky top-0 z-50 header-box border-b border-bordercolor shadow-lg transition-colors backdrop-blur-md">
+            <!-- Header -->
+            <header class="px-6 py-3 flex justify-between items-center max-w-[1700px] mx-auto w-full">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-red-500/20 text-red-500 dark:text-red-400 p-2 rounded-xl border border-red-500/30">
+                        <i class="fa-solid fa-shield-halved text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold heading-text tracking-wide">Suricata Threat Command Center</h1>
+                        <p class="text-[11px] subtext">Mikrotik Integration • Host: <span id="host-name" class="font-mono font-bold text-indigo-600 dark:text-indigo-400">msi-debian</span></p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span id="service-status-badge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping mr-2"></span> Engine Active
+                    </span>
+
+                    <button id="btn-start-engine" onclick="startSuricataEngine()" class="hidden bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs px-3 py-1.5 rounded-lg transition border border-emerald-500/30 font-semibold items-center">
+                        <i class="fa-solid fa-play mr-1.5"></i> Start Engine
+                    </button>
+                    <button id="btn-stop-engine" onclick="stopSuricataEngine()" class="bg-red-500/15 hover:bg-red-500/25 text-red-600 dark:text-red-400 text-xs px-3 py-1.5 rounded-lg transition border border-red-500/30 font-semibold flex items-center">
+                        <i class="fa-solid fa-stop mr-1.5"></i> Stop Engine
+                    </button>
+
+                    <button onclick="fetchData()" class="bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs px-3 py-1.5 rounded-lg transition border border-slate-300 dark:border-slate-600 flex items-center font-medium">
+                        <i class="fa-solid fa-arrows-rotate mr-1.5" id="refresh-icon"></i> Refresh
+                    </button>
+                </div>
+            </header>
+
+            <!-- Stats Grid Bar -->
+            <div class="px-6 pb-3 max-w-[1700px] mx-auto w-full">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+                    <div class="block-card !p-3">
+                        <p class="text-[10px] font-medium subtext uppercase tracking-wider">Total Threats</p>
+                        <h3 class="text-xl font-extrabold heading-text mt-0.5" id="stat-total-alerts">0</h3>
+                    </div>
+
+                    <div class="block-card !p-3">
+                        <p class="text-[10px] font-medium subtext uppercase tracking-wider">Blocked IPs</p>
+                        <h3 class="text-xl font-extrabold text-red-500 dark:text-red-400 mt-0.5" id="stat-blocked-ips">0</h3>
+                    </div>
+
+                    <div class="block-card !p-3">
+                        <p class="text-[10px] font-medium subtext uppercase tracking-wider">Suppressed Rules</p>
+                        <h3 class="text-xl font-extrabold text-amber-500 dark:text-amber-400 mt-0.5" id="stat-suppressed-rules">0</h3>
+                    </div>
+
+                    <div class="block-card !p-3">
+                        <p class="text-[10px] font-medium subtext uppercase tracking-wider">Public IPv4 WAN</p>
+                        <h3 class="text-xs font-mono font-extrabold text-cyan-600 dark:text-cyan-400 mt-1 truncate" id="stat-ipv4-wan">Loading...</h3>
+                    </div>
+
+                    <div class="block-card !p-3">
+                        <p class="text-[10px] font-medium subtext uppercase tracking-wider">IPv6 Subnet Delegation</p>
+                        <h3 class="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-1 truncate" id="stat-ipv6-pool">Loading...</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content (Scrollable Page Body) -->
+        <main class="flex-1 p-6 space-y-6 max-w-[1700px] w-full mx-auto">
+
+            <!-- Custom Target Whitelist Bar -->
+            <div class="block-card space-y-4">
+                <h2 class="text-base font-bold heading-text flex items-center">
+                    <i class="fa-solid fa-shield-heart text-emerald-500 dark:text-emerald-400 mr-2"></i> Custom Target Whitelist (Never Alert / Never Block)
+                </h2>
+                <div class="flex flex-col sm:flex-row items-center gap-3">
+                    <input type="text" id="whitelist-target" placeholder="Enter IP Address (e.g. 1.2.3.4) or FQDN (e.g. vpn.company.com)" class="flex-1 custom-input border text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500 font-mono">
+                    <button onclick="addWhitelist()" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs px-5 py-2.5 rounded-xl font-semibold transition whitespace-nowrap flex items-center">
+                        <i class="fa-solid fa-plus mr-1.5"></i> Add to Whitelist
+                    </button>
+                </div>
+                <div id="whitelist-feedback" class="text-xs font-mono hidden"></div>
+
+                <!-- Whitelisted Items Table -->
+                <div class="mt-4 border-t border-bordercolor/60 pt-4">
+                    <h3 class="text-xs font-bold subtext mb-2 uppercase tracking-wider flex items-center">
+                        <i class="fa-solid fa-list-check subtext mr-1.5"></i> Active Whitelisted IPs & Domains (/etc/suricata/whitelist.config)
+                    </h3>
+                    <div id="whitelist-container" class="space-y-1.5">
+                        <div class="text-xs subtext py-2">No custom whitelist entries active</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Two Column Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- MikroTik Active Block List -->
+                <div class="block-card flex flex-col">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-base font-bold heading-text flex items-center">
+                            <i class="fa-solid fa-shield-cat text-red-500 dark:text-red-400 mr-2"></i> Active MikroTik Firewall Blocks
+                        </h2>
+                        <span class="text-xs subtext">Auto-expires in 1hr</span>
+                    </div>
+                    <div class="w-full">
+                        <div class="item-row table-head-row uppercase text-[10px] tracking-wider border mb-2 font-semibold">
+                            <div class="col-ip">IP Address</div>
+                            <div class="col-reason">Reason / Signature</div>
+                            <div class="col-action">Action</div>
+                        </div>
+                        <div id="table-blocked-body" class="space-y-1">
+                            <div class="py-4 text-center subtext text-xs">Loading active blocks...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Suppressed Rules Management -->
+                <div class="block-card flex flex-col">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-base font-bold heading-text flex items-center">
+                            <i class="fa-solid fa-bell-slash text-amber-500 dark:text-amber-400 mr-2"></i> Suppressed Rule Signatures
+                        </h2>
+                        <span class="text-xs subtext">threshold.config</span>
+                    </div>
+                    <div class="w-full">
+                        <div class="item-row table-head-row uppercase text-[10px] tracking-wider border mb-2 font-semibold">
+                            <div class="col-ip" style="flex:0 0 30%;max-width:30%;">Signature ID</div>
+                            <div class="col-reason" style="flex:0 0 55%;max-width:55%;">Rule Description</div>
+                            <div class="col-action" style="flex:0 0 15%;max-width:15%;">Action</div>
+                        </div>
+                        <div id="table-suppressed-body" class="space-y-1">
+                            <div class="py-4 text-center subtext text-xs">Loading suppressed rules...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Threat Events Feed -->
+            <div class="block-card">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-base font-bold heading-text flex items-center">
+                        <i class="fa-solid fa-list-check text-blue-500 dark:text-blue-400 mr-2"></i> Active Security Threats (High/Medium Severity)
+                    </h2>
+                    <span class="text-xs subtext">Active cooldown &amp; Telegram alerts</span>
+                </div>
+                <div class="w-full overflow-x-auto">
+                    <table class="w-full text-left text-xs min-w-[700px]">
+                        <thead class="table-head-row uppercase text-[10px] tracking-wider border-b">
+                            <tr>
+                                <th class="py-3 px-3 w-[18%]">Timestamp</th>
+                                <th class="py-3 px-3 w-[18%]">Severity</th>
+                                <th class="py-3 px-3 w-[34%]">Signature Threat Name</th>
+                                <th class="py-3 px-3 w-[15%]">LAN Device IP</th>
+                                <th class="py-3 px-3 w-[15%]">Target IP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-threats-body" class="divide-y divide-slate-200 dark:divide-slate-800">
+                            <tr><td colspan="5" class="py-4 text-center subtext">Loading threat history...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- All Alert Events Log (Selectable Dropdown + Live Search) -->
+            <div class="block-card border-indigo-500/30">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                    <div>
+                        <h2 class="text-base font-bold heading-text flex items-center">
+                            <i class="fa-solid fa-radar text-indigo-500 dark:text-indigo-400 mr-2"></i> All Alert Events Log (Includes Low Severity)
+                        </h2>
+                        <p class="text-xs subtext mt-0.5">Live feed of all Suricata detections (Severities 1, 2 &amp; 3)</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div class="relative flex-1 min-w-[200px]">
+                            <input type="text" id="event-search" oninput="fetchEvents()" placeholder="Search IP, signature, SID, proto..." class="w-full custom-input border text-xs pl-8 pr-3 py-1.5 rounded-lg focus:outline-none focus:border-indigo-500 font-mono">
+                            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 subtext text-xs"></i>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <label for="event-limit" class="text-xs subtext font-medium whitespace-nowrap">Show:</label>
+                            <select id="event-limit" onchange="fetchEvents()" class="custom-input border text-xs text-indigo-600 dark:text-indigo-400 font-semibold px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-indigo-500">
+                                <option value="10">10 Events</option>
+                                <option value="25" selected>25 Events</option>
+                                <option value="50">50 Events</option>
+                                <option value="75">75 Events</option>
+                                <option value="100">100 Events</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full overflow-x-auto">
+                    <table class="w-full text-left text-xs min-w-[800px]">
+                        <thead class="table-head-row uppercase text-[10px] tracking-wider border-b">
+                            <tr>
+                                <th class="py-3 px-3 w-[16%]">Timestamp</th>
+                                <th class="py-3 px-3 w-[14%]">Severity</th>
+                                <th class="py-3 px-3 w-[36%]">Signature / SID</th>
+                                <th class="py-3 px-3 w-[17%]">Source (IP:Port)</th>
+                                <th class="py-3 px-3 w-[17%]">Destination (IP:Port)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-events-body" class="divide-y divide-slate-200 dark:divide-slate-800">
+                            <tr><td colspan="5" class="py-4 text-center subtext">Loading live alert events...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // System Theme Listener (Light / Dark Mode auto-sync)
+        function applyThemePreference() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+        applyThemePreference();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyThemePreference);
+
+        let feedbackTimeout = null;
+
+        function showFeedback(msg, isSuccess) {
+            const feedback = document.getElementById('whitelist-feedback');
+            if(feedbackTimeout) clearTimeout(feedbackTimeout);
+            
+            feedback.className = isSuccess 
+                ? 'text-xs font-mono text-emerald-400' 
+                : 'text-xs font-mono text-red-400';
+            feedback.innerText = msg;
+            feedback.classList.remove('hidden');
+
+            feedbackTimeout = setTimeout(() => {
+                feedback.classList.add('hidden');
+            }, 6000);
+        }
+
+        async function fetchData() {
+            const refreshIcon = document.getElementById('refresh-icon');
+            refreshIcon.classList.add('fa-spin');
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                
+                document.getElementById('stat-total-alerts').innerText = data.total_threats || 0;
+                document.getElementById('stat-blocked-ips').innerText = data.blocked_ips.length;
+                document.getElementById('stat-suppressed-rules').innerText = data.suppressed_rules.length;
+                document.getElementById('stat-ipv4-wan').innerText = data.ipv4_wan || 'None detected';
+                document.getElementById('stat-ipv6-pool').innerText = data.ipv6_prefix || 'None detected';
+
+                if (data.hostname) {
+                    document.getElementById('host-name').innerText = data.hostname;
+                }
+
+                // Service Status & Button Toggle
+                const statusBadge = document.getElementById('service-status-badge');
+                const btnStart = document.getElementById('btn-start-engine');
+                const btnStop = document.getElementById('btn-stop-engine');
+
+                if (data.suricata_active) {
+                    statusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20';
+                    statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping mr-2"></span> Engine Active';
+                    btnStart.classList.add('hidden');
+                    btnStart.classList.remove('flex');
+                    btnStop.classList.remove('hidden');
+                    btnStop.classList.add('flex');
+                } else {
+                    statusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20';
+                    statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 dark:bg-red-400 mr-2"></span> Engine Stopped';
+                    btnStop.classList.add('hidden');
+                    btnStop.classList.remove('flex');
+                    btnStart.classList.remove('hidden');
+                    btnStart.classList.add('flex');
+                }
+
+                // Render Blocked IPs
+                const blockTbody = document.getElementById('table-blocked-body');
+                if(data.blocked_ips.length === 0) {
+                    blockTbody.innerHTML = '<div class="py-4 text-center subtext text-xs">No active MikroTik blocks</div>';
+                } else {
+                    blockTbody.innerHTML = data.blocked_ips.map(item => {
+                        const cleanComment = (item.comment || 'Suricata Block').replace(/^Suricata:\s*/i, '');
+                        return `
+                            <div class="item-row">
+                                <div class="col-ip font-mono font-semibold ${item.is_v6 ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}" title="${item.address}">${item.address}</div>
+                                <div class="col-reason heading-text" title="${cleanComment}">${cleanComment}</div>
+                                <div class="col-action">
+                                    <button onclick="unblockIp('${item.address}', ${item.is_v6})" class="btn-action">
+                                        Unblock
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // Render Whitelisted Items List
+                const whitelistContainer = document.getElementById('whitelist-container');
+                const whitelistItems = (data.whitelist_entries || []);
+                if(whitelistItems.length === 0) {
+                    whitelistContainer.innerHTML = '<div class="text-xs subtext py-1">No custom whitelist entries active (/etc/suricata/whitelist.config)</div>';
+                } else {
+                    whitelistContainer.innerHTML = whitelistItems.map(target => `
+                        <div class="flex items-center justify-between bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 px-3.5 py-2 rounded-xl text-xs">
+                            <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400">${target}</span>
+                            <button onclick="removeWhitelist('${target}')" class="bg-red-500/10 hover:bg-red-500/20 text-red-500 dark:text-red-400 border border-red-500/30 text-[10px] px-2.5 py-1 rounded transition whitespace-nowrap ml-3">
+                                Remove Whitelist
+                            </button>
+                        </div>
+                    `).join('');
+                }
+
+                // Render Suppressed Rules
+                const suppTbody = document.getElementById('table-suppressed-body');
+                if(data.suppressed_rules.length === 0) {
+                    suppTbody.innerHTML = '<div class="py-4 text-center subtext text-xs">No rules currently suppressed</div>';
+                } else {
+                    suppTbody.innerHTML = data.suppressed_rules.map(item => `
+                        <div class="item-row">
+                            <div class="col-ip font-mono font-bold text-amber-600 dark:text-amber-400" style="flex:0 0 30%;max-width:30%;">SID ${item.sid}</div>
+                            <div class="col-reason heading-text" style="flex:0 0 55%;max-width:55%;" title="${item.description}">${item.description}</div>
+                            <div class="col-action" style="flex:0 0 15%;max-width:15%;">
+                                <button onclick="unsuppressRule('${item.sid}')" class="btn-suppress">
+                                    Un-suppress
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                // Render Recent Threats
+                const threatsTbody = document.getElementById('table-threats-body');
+                if(data.recent_threats.length === 0) {
+                    threatsTbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center subtext">No active threat events in the last 5 minutes</td></tr>';
+                } else {
+                    threatsTbody.innerHTML = data.recent_threats.map(t => `
+                        <tr class="hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors">
+                            <td class="py-3 px-3 subtext font-mono text-[11px] whitespace-nowrap">${t.timestamp}</td>
+                            <td class="py-3 px-3 whitespace-nowrap">
+                                ${t.severity === 1 
+                                    ? '<span class="bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 px-2 py-0.5 rounded text-[10px] font-bold">Level 1 (High)</span>' 
+                                    : '<span class="bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-bold">Level 2 (Medium)</span>'}
+                            </td>
+                            <td class="py-3 px-3 font-semibold heading-text">
+                                <div class="max-w-[300px] truncate" title="${t.signature}">${t.signature}</div>
+                            </td>
+                            <td class="py-3 px-3 font-mono text-emerald-600 dark:text-emerald-400">
+                                <div class="max-w-[180px] truncate" title="${t.lan_ip}">${t.lan_ip}</div>
+                            </td>
+                            <td class="py-3 px-3 font-mono text-blue-600 dark:text-blue-400">
+                                <div class="max-w-[180px] truncate" title="${t.target_ip}">${t.target_ip}</div>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) {
+                console.error(e);
+            } finally {
+                refreshIcon.classList.remove('fa-spin');
+            }
+        }
+
+        async function addWhitelist() {
+            const target = document.getElementById('whitelist-target').value.trim();
+            if(!target) {
+                alert('Please enter an IP address or FQDN (domain name)');
+                return;
+            }
+
+            const feedback = document.getElementById('whitelist-feedback');
+            feedback.className = 'text-xs font-mono text-amber-500 dark:text-amber-400';
+            feedback.innerText = `Adding ${target} to /etc/suricata/whitelist.config...`;
+            feedback.classList.remove('hidden');
+            
+            try {
+                const res = await fetch('/api/whitelist/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target})
+                });
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('whitelist-target').value = '';
+                    showFeedback(`✅ Success: ${target} added to Whitelist!`, true);
+                    fetchData();
+                } else {
+                    showFeedback(`❌ Error: ${data.message}`, false);
+                }
+            } catch(e) {
+                showFeedback(`❌ Request failed: ${e}`, false);
+            }
+        }
+
+        async function removeWhitelist(target) {
+            if(!confirm(`Remove ${target} from Whitelist (/etc/suricata/whitelist.config)?`)) return;
+            try {
+                const res = await fetch('/api/whitelist/remove', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target})
+                });
+                const data = await res.json();
+                if(data.success) {
+                    showFeedback(`🗑️ Removed ${target} from Whitelist`, true);
+                    fetchData();
+                } else {
+                    showFeedback(`❌ Error removing ${target}`, false);
+                }
+            } catch(e) {
+                showFeedback(`❌ Request failed: ${e}`, false);
+            }
+        }
+
+        async function unblockIp(ip, isV6) {
+            if(!confirm(`Remove ${ip} from MikroTik firewall block list?`)) return;
+            await fetch('/api/unblock', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ip, is_v6: isV6})
+            });
+            fetchData();
+        }
+
+        async function unsuppressRule(sid) {
+            if(!confirm(`Re-enable rule SID ${sid} in Suricata?`)) return;
+            await fetch('/api/unsuppress', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sid})
+            });
+            fetchData();
+        }
+
+        async function startSuricataEngine() {
+            try {
+                const res = await fetch('/api/suricata/start', { method: 'POST' });
+                const data = await res.json();
+                if(data.success) {
+                    showFeedback('▶️ Suricata Engine started', true);
+                } else {
+                    showFeedback(`❌ Failed to start engine: ${data.message}`, false);
+                }
+            } catch(e) {
+                showFeedback(`❌ Error starting engine: ${e}`, false);
+            }
+            fetchData();
+        }
+
+        async function stopSuricataEngine() {
+            if(!confirm('Are you sure you want to stop the Suricata Packet Engine? (Web Command Center UI will remain online)')) return;
+            try {
+                const res = await fetch('/api/suricata/stop', { method: 'POST' });
+                const data = await res.json();
+                if(data.success) {
+                    showFeedback('⏹️ Suricata Engine stopped', true);
+                } else {
+                    showFeedback(`❌ Failed to stop engine: ${data.message}`, false);
+                }
+            } catch(e) {
+                showFeedback(`❌ Error stopping engine: ${e}`, false);
+            }
+            fetchData();
+        }
+
+        fetchData();
+        fetchEvents();
+        setInterval(fetchData, 10000);
+        setInterval(fetchEvents, 5000);
+
+        async function fetchEvents() {
+            const limit = document.getElementById('event-limit').value || 25;
+            const search = document.getElementById('event-search').value.trim();
+            const url = `/api/events?limit=${limit}&q=${encodeURIComponent(search)}`;
+            
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                const tbody = document.getElementById('table-events-body');
+                
+                if (!data.events || data.events.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center subtext text-xs">No matching alert events found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.events.map(e => {
+                    let sevBadge = '';
+                    if (e.severity === 1) {
+                        sevBadge = '<span class="bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 px-2 py-0.5 rounded text-[10px] font-bold">Level 1 (High)</span>';
+                    } else if (e.severity === 2) {
+                        sevBadge = '<span class="bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-bold">Level 2 (Medium)</span>';
+                    } else {
+                        sevBadge = '<span class="bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded text-[10px] font-bold">Level 3 (Low)</span>';
+                    }
+
+                    const srcPortStr = e.src_port ? `:${e.src_port}` : '';
+                    const destPortStr = e.dest_port ? `:${e.dest_port}` : '';
+                    const protoBadge = e.proto ? `<span class="text-[9px] uppercase font-mono px-1 py-0.2 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700 rounded ml-1">${e.proto}</span>` : '';
+                    const countBadge = (e.count && e.count > 1) ? `<span class="bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ml-1.5">${e.count}x</span>` : '';
+
+                    return `
+                        <tr class="hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors">
+                            <td class="py-2.5 px-3 subtext font-mono text-[11px] whitespace-nowrap">${e.timestamp}</td>
+                            <td class="py-2.5 px-3 whitespace-nowrap">${sevBadge}</td>
+                            <td class="py-2.5 px-3 font-semibold heading-text">
+                                <div class="flex items-center space-x-1.5">
+                                    <span class="max-w-[340px] truncate" title="${e.signature}">${e.signature}</span>
+                                    ${protoBadge}
+                                    ${countBadge}
+                                </div>
+                                <div class="text-[10px] subtext font-mono font-normal">SID ${e.sig_id || 'N/A'} • ${e.category || 'General'}</div>
+                            </td>
+                            <td class="py-2.5 px-3 font-mono text-emerald-600 dark:text-emerald-400 text-xs">
+                                <div class="max-w-[190px] truncate" title="${e.src_ip}${srcPortStr}">${e.src_ip}${srcPortStr}</div>
+                            </td>
+                            <td class="py-2.5 px-3 font-mono text-cyan-600 dark:text-cyan-400 text-xs">
+                                <div class="max-w-[190px] truncate" title="${e.dest_ip}${destPortStr}">${e.dest_ip}${destPortStr}</div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch(e) {
+                console.error("Error fetching events:", e);
+            }
+        }
+    </script>
+</body>
+</html>
