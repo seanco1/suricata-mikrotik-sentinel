@@ -27,6 +27,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 EVE_LOG_PATH = os.environ.get("EVE_LOG_PATH", "/var/log/suricata/eve.json")
 THRESHOLD_CONF_PATH = os.environ.get("THRESHOLD_CONF_PATH", "/etc/suricata/threshold.config")
 WHITELIST_CONF_PATH = os.environ.get("WHITELIST_CONF_PATH", "/etc/suricata/whitelist.config")
+BLACKLIST_CONF_PATH = os.environ.get("BLACKLIST_CONF_PATH", "/etc/suricata/blacklist.config")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "YOUR_TELEGRAM_CHAT_ID")
 SURICATA_WEBHOOK_SECRET = os.environ.get("SURICATA_WEBHOOK_SECRET", "YOUR_SURICATA_WEBHOOK_SECRET")
@@ -67,14 +68,17 @@ def get_routeros_connection():
 # Dynamic Public IP & IPv6 Prefix Whitelist Cache
 PUBLIC_IPS = set()
 IPV6_PREFIXES = []
+MIKROTIK_SUBNETS = []
 IPV4_WAN_ADDRESS = ""
 CUSTOM_WHITELIST_TARGETS = set()
 CUSTOM_WHITELIST_IPS = set()
+CUSTOM_BLACKLIST_TARGETS = set()
+CUSTOM_BLACKLIST_IPS = set()
 LAST_IP_CHECK = 0
 CHECK_INTERVAL = 30  # Refresh IPv6 prefixes & check sniffer status every 30 seconds
 
 def ensure_mikrotik_sniffer_running():
-    """Check if RouterOS packet sniffer is running; automatically start it if stopped (e.g. post-reboot)."""
+    """Check if RouterOS packet sniffer is running and properly streaming; automatically start/repair if needed."""
     pool = get_routeros_connection()
     if pool:
         try:
@@ -83,10 +87,30 @@ def ensure_mikrotik_sniffer_running():
             status_list = sniffer_res.get()
             if status_list:
                 status = status_list[0]
-                if status.get('running') == 'false':
-                    print("[SNIFFER] MikroTik packet sniffer is stopped. Auto-starting sniffer...", flush=True)
+                is_running = status.get('running') == 'true'
+                streaming_server = status.get('streaming-server', '')
+                filter_iface = status.get('filter-interface', '')
+                
+                # Check if sniffer stopped, lost streaming server target, or filter interface needs update
+                needs_update = (not is_running) or ('37008' not in streaming_server) or (filter_iface != 'all')
+                
+                if needs_update:
+                    print("[SNIFFER] Repairing/starting MikroTik packet sniffer settings...", flush=True)
+                    if is_running:
+                        try:
+                            sniffer_res.call('stop')
+                        except Exception:
+                            pass
+                    
+                    target_server = "172.18.141.33:37008"
+                    sniffer_res.set(**{
+                        "streaming-enabled": "true",
+                        "streaming-server": target_server,
+                        "filter-stream": "true",
+                        "filter-interface": "all"
+                    })
                     sniffer_res.call('start')
-                    print("[SNIFFER] Successfully started MikroTik packet sniffer!", flush=True)
+                    print("[SNIFFER] Successfully configured and started MikroTik packet sniffer!", flush=True)
         except Exception as e:
             print(f"Error checking/starting MikroTik packet sniffer: {e}", flush=True)
 
@@ -113,12 +137,13 @@ def resolve_target_to_ips(target_str):
         
     try:
         addr_info = socket.getaddrinfo(target_str, None)
-        for item in addr_info:
-            ip = normalize_ip(item[4][0])
-            if ip and ip not in resolved_ips:
-                resolved_ips.append(ip)
-    except Exception as e:
-        print(f"Error resolving FQDN {target_str}: {e}", flush=True)
+        for res in addr_info:
+            ip_val = res[4][0]
+            clean_ip = normalize_ip(ip_val)
+            if clean_ip and clean_ip not in resolved_ips:
+                resolved_ips.append(clean_ip)
+    except Exception:
+        pass
         
     return resolved_ips
 
@@ -140,17 +165,125 @@ def load_custom_whitelist():
     CUSTOM_WHITELIST_IPS = ips
     return targets, ips
 
+def add_target_to_whitelist(target):
+    """Write target IP or domain to /etc/suricata/whitelist.config and reload whitelist in memory."""
+    target = target.strip()
+    if not target:
+        return False
+    try:
+        existing = set()
+        if os.path.exists(WHITELIST_CONF_PATH):
+            with open(WHITELIST_CONF_PATH, "r") as f:
+                for l in f:
+                    if l.strip() and not l.startswith("#"):
+                        existing.add(l.strip())
+        if target not in existing:
+            with open(WHITELIST_CONF_PATH, "a") as f:
+                f.write(f"{target}\n")
+        load_custom_whitelist()
+        return True
+    except Exception as e:
+        print(f"Error adding {target} to whitelist: {e}", flush=True)
+        return False
+
+def remove_target_from_whitelist(target):
+    """Remove target IP or domain from /etc/suricata/whitelist.config and reload whitelist in memory."""
+    target = target.strip()
+    if not target:
+        return False
+    try:
+        if os.path.exists(WHITELIST_CONF_PATH):
+            with open(WHITELIST_CONF_PATH, "r") as f:
+                lines = f.readlines()
+            new_lines = [l for l in lines if l.strip() != target]
+            with open(WHITELIST_CONF_PATH, "w") as f:
+                f.writelines(new_lines)
+        load_custom_whitelist()
+        return True
+    except Exception as e:
+        print(f"Error removing {target} from whitelist: {e}", flush=True)
+        return False
+
+def load_custom_blacklist():
+    """Load user blacklisted IPs and FQDN domains directly from disk on every check."""
+    global CUSTOM_BLACKLIST_TARGETS, CUSTOM_BLACKLIST_IPS
+    targets = set()
+    ips = set()
+    if os.path.exists(BLACKLIST_CONF_PATH):
+        with open(BLACKLIST_CONF_PATH, "r") as f:
+            for line in f:
+                entry = line.strip()
+                if entry and not entry.startswith("#"):
+                    targets.add(entry)
+                    resolved = resolve_target_to_ips(entry)
+                    for ip in resolved:
+                        ips.add(normalize_ip(ip))
+    CUSTOM_BLACKLIST_TARGETS = targets
+    CUSTOM_BLACKLIST_IPS = ips
+    return targets, ips
+
+def add_target_to_blacklist(target):
+    """Write target IP or domain to /etc/suricata/blacklist.config and immediately block on MikroTik."""
+    target = target.strip()
+    if not target:
+        return False
+    try:
+        existing = set()
+        if os.path.exists(BLACKLIST_CONF_PATH):
+            with open(BLACKLIST_CONF_PATH, "r") as f:
+                for l in f:
+                    if l.strip() and not l.startswith("#"):
+                        existing.add(l.strip())
+        if target not in existing:
+            with open(BLACKLIST_CONF_PATH, "a") as f:
+                f.write(f"{target}\n")
+        load_custom_blacklist()
+        
+        # Block resolved IPs on MikroTik immediately
+        resolved_ips = resolve_target_to_ips(target)
+        for ip in resolved_ips:
+            block_on_mikrotik(ip, f"Blacklisted: {target}")
+        return True
+    except Exception as e:
+        print(f"Error adding {target} to blacklist: {e}", flush=True)
+        return False
+
+def remove_target_from_blacklist(target):
+    """Remove target IP or domain from /etc/suricata/blacklist.config, unblock from MikroTik, and reload memory."""
+    target = target.strip()
+    if not target:
+        return False
+    try:
+        if os.path.exists(BLACKLIST_CONF_PATH):
+            with open(BLACKLIST_CONF_PATH, "r") as f:
+                lines = f.readlines()
+            new_lines = [l for l in lines if l.strip() != target]
+            with open(BLACKLIST_CONF_PATH, "w") as f:
+                f.writelines(new_lines)
+        load_custom_blacklist()
+        
+        resolved_ips = resolve_target_to_ips(target)
+        for ip in resolved_ips:
+            is_v6 = ":" in ip
+            unblock_on_mikrotik(ip, is_v6)
+        return True
+    except Exception as e:
+        print(f"Error removing {target} from blacklist: {e}", flush=True)
+        return False
+
 def refresh_mikrotik_prefixes():
-    """Query persistent MikroTik API directly for public IPv4 WAN IP (/ip/cloud) & dynamic IPv6 Prefix Delegation (/ipv6/pool)."""
-    global PUBLIC_IPS, IPV6_PREFIXES, IPV4_WAN_ADDRESS, LAST_IP_CHECK
+    """Query persistent MikroTik API directly for public IPv4 WAN IP (/ip/cloud), subnets (/ip/address), & dynamic IPv6 Prefix Delegation (/ipv6/pool)."""
+    global PUBLIC_IPS, IPV6_PREFIXES, MIKROTIK_SUBNETS, IPV4_WAN_ADDRESS, LAST_IP_CHECK, ROUTEROS_POOL
     now = time.time()
     if now - LAST_IP_CHECK < CHECK_INTERVAL:
         return
         
     new_ips = set()
     new_prefixes = []
+    new_subnets = []
     
     load_custom_whitelist()
+    load_custom_blacklist()
     
     pool = get_routeros_connection()
     if pool:
@@ -184,6 +317,18 @@ def refresh_mikrotik_prefixes():
                 if addr_str:
                     clean_addr = normalize_ip(addr_str)
                     new_ips.add(clean_addr)
+                    
+            # Dynamically fetch all IPv4 interface subnets configured on MikroTik
+            ip4_addrs = api.get_resource('/ip/address').get()
+            for a in ip4_addrs:
+                addr_str = a.get('address')
+                if addr_str and '/' in addr_str:
+                    try:
+                        net = ipaddress.ip_network(addr_str, strict=False)
+                        if net.is_private:
+                            new_subnets.append(net)
+                    except Exception:
+                        pass
         except Exception as e:
             print(f"Failed to query persistent MikroTik API (will reconnect): {e}", flush=True)
             ROUTEROS_POOL = None
@@ -192,6 +337,7 @@ def refresh_mikrotik_prefixes():
             
     PUBLIC_IPS = new_ips
     IPV6_PREFIXES = new_prefixes
+    MIKROTIK_SUBNETS = new_subnets
     LAST_IP_CHECK = now
 
 def resolve_lan_ip_from_mikrotik(src_port, dest_port):
@@ -249,6 +395,11 @@ def is_internal_or_whitelisted(ip_str):
     except ValueError:
         return True
 
+    if MIKROTIK_SUBNETS:
+        for subnet in MIKROTIK_SUBNETS:
+            if ip_obj in subnet:
+                return True
+
     if norm.startswith("192.168.") or norm.startswith("10.") or norm.startswith("172.16.") or norm.startswith("172.17.") or norm.startswith("172.18.") or norm.startswith("172.19.") or norm.startswith("172.31."):
         return True
 
@@ -260,6 +411,21 @@ def is_internal_or_whitelisted(ip_str):
             if ip_obj in prefix_net:
                 return True
 
+    return False
+
+def is_signature_suppressed(sig_id):
+    """Check if signature SID is suppressed in threshold.config."""
+    if not sig_id:
+        return False
+    try:
+        sig_id_str = f"sig_id {sig_id}"
+        if os.path.exists(THRESHOLD_CONF_PATH):
+            with open(THRESHOLD_CONF_PATH, "r") as f:
+                for line in f:
+                    if line.strip().startswith("suppress") and sig_id_str in line:
+                        return True
+    except Exception:
+        pass
     return False
 
 def get_signature_name_by_sid(sig_id):
@@ -345,7 +511,7 @@ def send_telegram_text(msg):
     except Exception as e:
         print(f"[TELEGRAM_TEXT] Failed to send text message: {e}", flush=True)
 
-def send_telegram_alert(msg, sig_id, show_suppress_button=False):
+def send_telegram_alert(msg, sig_id, target_ip="", is_blocked=False):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -355,21 +521,26 @@ def send_telegram_alert(msg, sig_id, show_suppress_button=False):
         "parse_mode": "HTML"
     }
     
-    if show_suppress_button:
+    inline_buttons = []
+    if is_blocked and target_ip:
+        inline_buttons.append({
+            "text": f"🔓 Unblock {target_ip}",
+            "callback_data": f"unblock:{target_ip}"
+        })
+    if sig_id:
+        inline_buttons.append({
+            "text": f"🔕 Suppress Rule SID {sig_id}",
+            "callback_data": f"suppress:{sig_id}"
+        })
+        
+    if inline_buttons:
         payload["reply_markup"] = {
-            "inline_keyboard": [
-                [
-                    {
-                        "text": f"🔕 Suppress Rule SID {sig_id}",
-                        "callback_data": f"suppress:{sig_id}"
-                    }
-                ]
-            ]
+            "inline_keyboard": [inline_buttons]
         }
         
     try:
         res = requests.post(url, json=payload, timeout=5)
-        print(f"[TELEGRAM] Sent alert (Button={show_suppress_button}) status: {res.status_code}", flush=True)
+        print(f"[TELEGRAM] Sent alert (Buttons={len(inline_buttons)}) status: {res.status_code}", flush=True)
     except Exception as e:
         print(f"[TELEGRAM] Failed to send Telegram alert: {e}", flush=True)
 
@@ -393,11 +564,58 @@ def process_telegram_update(update):
                 requests.post(ans_url, json={"callback_query_id": cb_id, "text": f"✅ Suppressed: {sig_name_preview[:100]}"}, timeout=3)
                 
                 # 2. Send Telegram Chat Confirmation Text INSTANTLY (<0.2s)
-                log_msg = f"✅ <b>Rule Suppressed & Unblocked</b>\n\nUser <b>{safe_from_user}</b> permanently suppressed threat:\n<code>user: {safe_sig_name}</code> (SID <code>{sig_to_suppress}</code>) and unblocked target IP on MikroTik."
+                log_msg = f"✅ <b>Rule Suppressed & Unblocked</b>\n\nUser <b>{safe_from_user}</b> permanently suppressed threat:\n<code>{safe_sig_name}</code> (SID <code>{sig_to_suppress}</code>) and unblocked target IP on MikroTik."
                 send_telegram_text(log_msg)
                 
                 # 3. Perform file write, MikroTik unblock & Suricata reload in background worker
                 Thread(target=suppress_signature_in_suricata, args=(sig_to_suppress, sig_name_preview), daemon=True).start()
+                
+            elif cb_data.startswith("unblock:"):
+                ip_to_unblock = cb_data.split(":", 1)[1]
+                safe_ip = html.escape(ip_to_unblock)
+                safe_from_user = html.escape(from_user)
+                
+                ans_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery"
+                requests.post(ans_url, json={"callback_query_id": cb_id, "text": f"🔓 Unblocking & Whitelisting {ip_to_unblock}..."}, timeout=3)
+                
+                is_v6 = ":" in ip_to_unblock
+                success = unblock_on_mikrotik(ip_to_unblock, is_v6)
+                
+                # Permanently whitelist the target IP so it won't trigger future blocks/alerts
+                add_target_to_whitelist(ip_to_unblock)
+                
+                if success:
+                    send_telegram_text(f"🔓 <b>IP Unblocked & Whitelisted</b>\n\nUser <b>{safe_from_user}</b> unblocked <code>{safe_ip}</code> on MikroTik firewall and added it to the permanent Whitelist.")
+                else:
+                    send_telegram_text(f"🛡️ <b>IP Whitelisted</b>\n\nUser <b>{safe_from_user}</b> added <code>{safe_ip}</code> to permanent Whitelist (MikroTik block expired or was not active).")
+                
+            elif cb_data.startswith("rmwhitelist:"):
+                target_to_remove = cb_data.split(":", 1)[1]
+                safe_target = html.escape(target_to_remove)
+                safe_from_user = html.escape(from_user)
+                
+                ans_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery"
+                requests.post(ans_url, json={"callback_query_id": cb_id, "text": f"🗑️ Removing {target_to_remove} from Whitelist..."}, timeout=3)
+                
+                success = remove_target_from_whitelist(target_to_remove)
+                if success:
+                    send_telegram_text(f"🗑️ <b>Removed from Whitelist</b>\n\nUser <b>{safe_from_user}</b> removed <code>{safe_target}</code> from Suricata Whitelist.")
+                else:
+                    send_telegram_text(f"⚠️ <b>Removal Failed</b>\n\nCould not remove <code>{safe_target}</code> from Whitelist.")
+                    
+            elif cb_data.startswith("rmblacklist:"):
+                target_to_remove = cb_data.split(":", 1)[1]
+                safe_target = html.escape(target_to_remove)
+                safe_from_user = html.escape(from_user)
+                
+                ans_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery"
+                requests.post(ans_url, json={"callback_query_id": cb_id, "text": f"🗑️ Removing {target_to_remove} from Blacklist..."}, timeout=3)
+                
+                success = remove_target_from_blacklist(target_to_remove)
+                if success:
+                    send_telegram_text(f"🗑️ <b>Removed from Blacklist</b>\n\nUser <b>{safe_from_user}</b> removed <code>{safe_target}</code> from Blacklist and unblocked it on MikroTik.")
+                else:
+                    send_telegram_text(f"⚠️ <b>Removal Failed</b>\n\nCould not remove <code>{safe_target}</code> from Blacklist.")
                 
         message = update.get("message")
         if message:
@@ -418,7 +636,7 @@ def process_telegram_update(update):
                 send_telegram_text(status_msg)
             elif text.startswith("/blocks"):
                 refresh_mikrotik_prefixes()
-                b_list = []
+                raw_blocked = []
                 pool = get_routeros_connection()
                 if pool:
                     try:
@@ -426,14 +644,89 @@ def process_telegram_update(update):
                         v4 = api.get_resource('/ip/firewall/address-list').get(list='Suricata-Blocked')
                         v6 = api.get_resource('/ipv6/firewall/address-list').get(list='Suricata-Blocked')
                         for i in v4 + v6:
-                            b_list.append(f"• <code>{i.get('address')}</code>")
+                            raw_blocked.append(i.get('address'))
                     except Exception:
                         pass
-                if b_list:
-                    blocks_msg = f"🚫 <b>Active MikroTik Blocks ({len(b_list)}):</b>\n\n" + "\n".join(b_list)
+                
+                if raw_blocked:
+                    blocks_text = f"🚫 <b>Active MikroTik Firewall Blocks ({len(raw_blocked)}):</b>\n\n"
+                    b_lines = [f"• <code>{ip}</code>" for ip in raw_blocked]
+                    blocks_text += "\n".join(b_lines)
+                    
+                    # Create inline unblock buttons (up to 8 blocked IPs)
+                    buttons = []
+                    for ip in raw_blocked[:8]:
+                        buttons.append({"text": f"🔓 Unblock {ip}", "callback_data": f"unblock:{ip}"})
+                    
+                    keyboard = [buttons[i:i+2] for i in range(0, len(buttons), 2)]
+                    
+                    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+                    payload = {
+                        "chat_id": TELEGRAM_CHAT_ID,
+                        "text": blocks_text,
+                        "parse_mode": "HTML",
+                        "reply_markup": {"inline_keyboard": keyboard}
+                    }
+                    try:
+                        requests.post(url, json=payload, timeout=5)
+                    except Exception as e:
+                        print(f"Failed to send /blocks response: {e}", flush=True)
                 else:
-                    blocks_msg = "✅ No IPs are currently blocked on MikroTik firewall."
-                send_telegram_text(blocks_msg)
+                    send_telegram_text("✅ No IPs are currently blocked on MikroTik firewall.")
+            elif text.startswith("/whitelist"):
+                targets, _ = load_custom_whitelist()
+                wl_list = sorted(list(targets))
+                if wl_list:
+                    wl_text = f"🛡️ <b>Suricata Custom Whitelist ({len(wl_list)}):</b>\n\n"
+                    wl_lines = [f"• <code>{item}</code>" for item in wl_list]
+                    wl_text += "\n".join(wl_lines)
+                    
+                    buttons = []
+                    for item in wl_list[:8]:
+                        buttons.append({"text": f"🗑️ Remove {item}", "callback_data": f"rmwhitelist:{item}"})
+                    
+                    keyboard = [buttons[i:i+2] for i in range(0, len(buttons), 2)]
+                    
+                    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+                    payload = {
+                        "chat_id": TELEGRAM_CHAT_ID,
+                        "text": wl_text,
+                        "parse_mode": "HTML",
+                        "reply_markup": {"inline_keyboard": keyboard}
+                    }
+                    try:
+                        requests.post(url, json=payload, timeout=5)
+                    except Exception as e:
+                        print(f"Failed to send /whitelist response: {e}", flush=True)
+                else:
+                    send_telegram_text("ℹ️ No custom whitelisted IPs/domains in <code>/etc/suricata/whitelist.config</code>.")
+            elif text.startswith("/blacklist"):
+                targets, _ = load_custom_blacklist()
+                bl_list = sorted(list(targets))
+                if bl_list:
+                    bl_text = f"⛔ <b>Suricata Permanent Blacklist ({len(bl_list)}):</b>\n\n"
+                    bl_lines = [f"• <code>{item}</code>" for item in bl_list]
+                    bl_text += "\n".join(bl_lines)
+                    
+                    buttons = []
+                    for item in bl_list[:8]:
+                        buttons.append({"text": f"🗑️ Remove {item}", "callback_data": f"rmblacklist:{item}"})
+                    
+                    keyboard = [buttons[i:i+2] for i in range(0, len(buttons), 2)]
+                    
+                    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+                    payload = {
+                        "chat_id": TELEGRAM_CHAT_ID,
+                        "text": bl_text,
+                        "parse_mode": "HTML",
+                        "reply_markup": {"inline_keyboard": keyboard}
+                    }
+                    try:
+                        requests.post(url, json=payload, timeout=5)
+                    except Exception as e:
+                        print(f"Failed to send /blacklist response: {e}", flush=True)
+                else:
+                    send_telegram_text("ℹ️ No permanent blacklisted IPs/domains in <code>/etc/suricata/blacklist.config</code>.")
             elif text.startswith("/dashboard"):
                 dash_msg = f"🖥️ <b>Web Command Center Dashboard</b>\n\nAccess Link: {DASHBOARD_URL}"
                 send_telegram_text(dash_msg)
@@ -444,6 +737,8 @@ def process_telegram_update(update):
                     f"Use inline buttons or slash commands:\n\n"
                     f"/status - Check live Suricata daemon & MikroTik status\n"
                     f"/blocks - List active MikroTik blocked IP addresses\n"
+                    f"/whitelist - View active custom whitelist & remove entries\n"
+                    f"/blacklist - View active permanent blacklist & remove entries\n"
                     f"/dashboard - Get link to local Web Command Center\n"
                     f"/help - Show this help menu"
                 )
@@ -454,9 +749,14 @@ def process_telegram_update(update):
         print(f"Error processing Telegram webhook update: {e}", flush=True)
 
 def setup_telegram_webhook():
-    """Register Webhook URL with Telegram Bot API."""
-    webhook_url = f"{DASHBOARD_URL.rstrip('/')}/telegram-webhook"
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook?url={webhook_url}&secret_token={SURICATA_WEBHOOK_SECRET}"
+    """Register public HTTPS Webhook URL with Telegram Bot API."""
+    base_url = DASHBOARD_URL.rstrip('/')
+    if "localhost" in base_url or "127.0.0.1" in base_url or base_url.startswith("http://"):
+        base_url = "https://suricata.cockrell.co.za"
+        
+    webhook_url = f"{base_url}/telegram-webhook"
+    secret_param = f"&secret_token={SURICATA_WEBHOOK_SECRET}" if SURICATA_WEBHOOK_SECRET and "YOUR_" not in SURICATA_WEBHOOK_SECRET else ""
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook?url={webhook_url}{secret_param}"
     try:
         r = requests.get(url, timeout=5)
         print(f"[TELEGRAM_WEBHOOK] Registered webhook {webhook_url} status: {r.status_code} body: {r.text}", flush=True)
@@ -583,8 +883,12 @@ def follow_eve_log():
                         if len(RAW_EVENTS) > 500:
                             RAW_EVENTS.pop()
 
-                    # Filter stream decode noise out from high-priority Telegram alerts & MikroTik blocking
+                    # Filter stream decode noise and suppressed SIDs out from Telegram alerts & MikroTik blocking
                     if signature.startswith("SURICATA STREAM") or signature.startswith("SURICATA UDP") or category == "Generic Protocol Command Decode":
+                        continue
+
+                    if is_signature_suppressed(sig_id):
+                        print(f"[SUPPRESS] Ignored suppressed rule alert (SID {sig_id}: {signature})", flush=True)
                         continue
 
                     if severity > 2:
@@ -603,6 +907,12 @@ def follow_eve_log():
                     
                     flow_src_ip = flow.get("src_ip")
                     flow_dest_ip = flow.get("dest_ip")
+                    
+                    # Ignore internal LAN-to-LAN traffic from triggering alerts or blocks
+                    if is_internal_or_whitelisted(src_ip) and is_internal_or_whitelisted(dest_ip):
+                        continue
+                    if flow_src_ip and flow_dest_ip and is_internal_or_whitelisted(flow_src_ip) and is_internal_or_whitelisted(flow_dest_ip):
+                        continue
                     
                     if flow_src_ip and is_internal_or_whitelisted(flow_src_ip) and not is_internal_or_whitelisted(flow_dest_ip):
                         lan_device_ip = flow_src_ip
@@ -643,6 +953,7 @@ def follow_eve_log():
                         "timestamp": timestamp,
                         "severity": severity,
                         "signature": signature,
+                        "sig_id": sig_id,
                         "lan_ip": lan_device_ip,
                         "target_ip": target_ip,
                         "expire_time": now + COOLDOWN_SECONDS
@@ -667,7 +978,7 @@ def follow_eve_log():
                         f"{action_label}"
                     )
                     print(msg, flush=True)
-                    send_telegram_alert(msg, sig_id, show_suppress_button=show_suppress_button)
+                    send_telegram_alert(msg, sig_id, target_ip=target_ip, is_blocked=is_will_block)
                     
                     if is_will_block:
                         block_on_mikrotik(target_ip, f"Suricata: {signature}")
@@ -681,9 +992,10 @@ CORS(app)
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook_route():
     incoming_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if incoming_secret != SURICATA_WEBHOOK_SECRET:
-        print(f"[SECURITY] Rejected unauthorized request to /telegram-webhook (Invalid Token)", flush=True)
-        return jsonify({"error": "Unauthorized secret token"}), 403
+    if SURICATA_WEBHOOK_SECRET and "YOUR_" not in SURICATA_WEBHOOK_SECRET:
+        if incoming_secret != SURICATA_WEBHOOK_SECRET:
+            print(f"[SECURITY] Rejected unauthorized request to /telegram-webhook (Invalid Token)", flush=True)
+            return jsonify({"error": "Unauthorized secret token"}), 403
         
     update = request.json or {}
     if update:
@@ -744,6 +1056,7 @@ def api_status():
     active_threats = [t for t in RECENT_THREATS if t.get("expire_time", 0) > now]
     
     targets, _ = load_custom_whitelist()
+    bl_targets, _ = load_custom_blacklist()
 
     suricata_active = os.system("systemctl is-active --quiet suricata.service") == 0
 
@@ -751,6 +1064,7 @@ def api_status():
         "total_threats": len(RECENT_THREATS),
         "blocked_ips": blocked_ips,
         "whitelist_entries": sorted(list(targets)),
+        "blacklist_entries": sorted(list(bl_targets)),
         "suppressed_rules": suppressed_rules,
         "recent_threats": active_threats[:15],
         "ipv4_wan": IPV4_WAN_ADDRESS or "None",
@@ -810,21 +1124,10 @@ def api_whitelist_add():
     if not resolved_ips:
         return jsonify({"success": False, "message": f"Could not resolve '{target}' to any valid IP address"}), 400
         
-    try:
-        existing = set()
-        if os.path.exists(WHITELIST_CONF_PATH):
-            with open(WHITELIST_CONF_PATH, "r") as f:
-                for l in f:
-                    if l.strip() and not l.startswith("#"):
-                        existing.add(l.strip())
-        if target not in existing:
-            with open(WHITELIST_CONF_PATH, "a") as f:
-                f.write(f"{target}\n")
-                
-        load_custom_whitelist()
+    success = add_target_to_whitelist(target)
+    if success:
         return jsonify({"success": True, "message": f"Added '{target}' to Suricata Whitelist."})
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Error saving whitelist: {e}"}), 500
+    return jsonify({"success": False, "message": "Error saving whitelist"}), 500
 
 @app.route("/api/whitelist/remove", methods=["POST"])
 def api_whitelist_remove():
@@ -834,17 +1137,40 @@ def api_whitelist_remove():
     if not target:
         return jsonify({"success": False, "message": "Target cannot be empty"}), 400
         
-    try:
-        if os.path.exists(WHITELIST_CONF_PATH):
-            with open(WHITELIST_CONF_PATH, "r") as f:
-                lines = f.readlines()
-            new_lines = [l for l in lines if l.strip() != target]
-            with open(WHITELIST_CONF_PATH, "w") as f:
-                f.writelines(new_lines)
-        load_custom_whitelist()
+    success = remove_target_from_whitelist(target)
+    if success:
         return jsonify({"success": True, "message": f"Removed '{target}' from Whitelist."})
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Error removing whitelist: {e}"}), 500
+    return jsonify({"success": False, "message": "Error removing whitelist"}), 500
+
+@app.route("/api/blacklist/add", methods=["POST"])
+def api_blacklist_add():
+    """Add an IP or FQDN domain to /etc/suricata/blacklist.config and immediately block on MikroTik."""
+    data = request.json or {}
+    target = data.get("target", "").strip()
+    if not target:
+        return jsonify({"success": False, "message": "Target cannot be empty"}), 400
+        
+    resolved_ips = resolve_target_to_ips(target)
+    if not resolved_ips:
+        return jsonify({"success": False, "message": f"Could not resolve '{target}' to any valid IP address"}), 400
+        
+    success = add_target_to_blacklist(target)
+    if success:
+        return jsonify({"success": True, "message": f"Added '{target}' to Permanent Blacklist & Blocked on MikroTik."})
+    return jsonify({"success": False, "message": "Error saving blacklist"}), 500
+
+@app.route("/api/blacklist/remove", methods=["POST"])
+def api_blacklist_remove():
+    """Remove an IP or FQDN domain from /etc/suricata/blacklist.config and unblock from MikroTik."""
+    data = request.json or {}
+    target = data.get("target", "").strip()
+    if not target:
+        return jsonify({"success": False, "message": "Target cannot be empty"}), 400
+        
+    success = remove_target_from_blacklist(target)
+    if success:
+        return jsonify({"success": True, "message": f"Removed '{target}' from Blacklist & Unblocked."})
+    return jsonify({"success": False, "message": "Error removing blacklist"}), 500
 
 @app.route("/api/unblock", methods=["POST"])
 def api_unblock():
@@ -864,6 +1190,16 @@ def api_unsuppress():
         success = unsuppress_signature_in_suricata(sid)
         return jsonify({"success": success})
     return jsonify({"success": False}), 400
+
+@app.route("/api/suppress", methods=["POST"])
+def api_suppress():
+    data = request.json or {}
+    sid = data.get("sid")
+    if sid:
+        sig_name = get_signature_name_by_sid(sid)
+        success, _ = suppress_signature_in_suricata(sid, sig_name)
+        return jsonify({"success": success, "sig_name": sig_name})
+    return jsonify({"success": False, "message": "Invalid SID"}), 400
 
 def run_web_server():
     print(f"Starting Flask Security Dashboard on port {WEB_PORT}...", flush=True)

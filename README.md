@@ -21,22 +21,30 @@ It parses real-time Suricata `eve.json` alert streams, automatically injects thr
 ### 🛡️ 1. Active Threat Prevention (IPS Engine)
 - **Automatic IP Blocking**: Instantly adds attacking source IPs to MikroTik RouterOS IP Firewall Address-List (`BLOCK_TIMEOUT = 1 hour`).
 - **Cool-Down Protection**: Implements per-signature and per-IP cooldown timers (5 minutes) to prevent event flooding.
-- **Dynamic Whitelisting**: Automatically queries MikroTik interface WAN IPs, IPv6 prefixes, and subnet ranges to avoid accidental blocking of local interfaces or public gateway IPs.
+- **Dynamic Whitelisting & Subnet Discovery**: Automatically queries MikroTik interface WAN IPs, IPv6 prefixes, and local subnet ranges every 30s to suppress internal LAN-to-LAN alert noise and avoid blocking gateways.
+- **Permanent Blacklisting**: Enforces permanent block rules (`/etc/suricata/blacklist.config`) that persist on RouterOS until manually removed.
 
 ### 📱 2. Interactive Telegram Bot Integration
 - **Real-Time Threat Notifications**: Sends formatted threat alerts to your Telegram chat containing signature name, target IP, category, and severity.
 - **Inline Action Buttons**:
   - 🛑 **Block IP**: Manually block an IP on MikroTik.
-  - 🔓 **Unblock IP**: Remove an IP from MikroTik address-list.
+  - 🔓 **Unblock IP**: Remove an IP from MikroTik address-list (and auto-whitelist).
   - 🔕 **Suppress Signature**: Silence noisy rule alerts directly from Telegram.
-  - ⚪ **Whitelist Target/IP**: Exclude safe IPs from future automated blocks.
+  - 🛡️ **Whitelist Target/IP**: Exclude safe IPs from future automated blocks.
+- **Interactive Slash Commands**:
+  - `/status` - Live daemon, packet sniffer & RouterOS API status.
+  - `/blocks` - Interactive active block list with inline `[ 🔓 Unblock ]` buttons.
+  - `/whitelist` - View active custom whitelist with inline `[ 🗑️ Remove ]` buttons.
+  - `/blacklist` - View active permanent blacklist with inline `[ 🗑️ Remove ]` buttons.
+  - `/dashboard` - Quick access URL to local Web Command Center.
 - **Webhook Callback Processing**: Processes Telegram button clicks in real time via secure HTTP webhook.
 
 ### 💻 3. Modern Web UI Security Command Center (`Port 8888`)
-- **Live Threat Stream**: View incoming high-severity and low-severity Suricata alert events in real time.
-- **Interactive Whitelist Management**: Add, remove, and view custom target/IP whitelists.
+- **Live Threat Stream**: View incoming high-severity and low-severity Suricata alert events in real time with 15s deduplication badges.
+- **Action Button Priority Layout**: Fixed-priority action buttons (`Unblock`, `Whitelist`, `Blacklist`, `Suppress`) that stay crisp and accessible regardless of window size.
+- **Interactive Management**: Add/remove Whitelist and Permanent Blacklist entries directly from cards.
 - **Rule Suppression Tuning**: Add or edit rule suppression thresholds (`threshold.config`) directly from the web interface.
-- **MikroTik Active Blocks List**: View currently blocked IPs on the router with remaining timeout counters and manual unblock triggers.
+- **MikroTik Active Blocks List**: View currently blocked IPs on the router with manual unblock and whitelist triggers.
 
 ### 🔄 4. TZSP Traffic Decapsulation (`tzsp_decap.py`)
 - Receives MikroTik Packet Streaming (TZSP UDP 37008) traffic.

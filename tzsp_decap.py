@@ -21,11 +21,17 @@ while True:
             tag = data[idx]
             if tag == 0x01: # Ethernet packet tag
                 payload = data[idx+1:]
-                inject_sock.send(payload)
+                try:
+                    inject_sock.send(payload)
+                except OSError as e:
+                    pass
                 break
             elif tag == 0xFF: # End of header
                 payload = data[idx+1:]
-                inject_sock.send(payload)
+                try:
+                    inject_sock.send(payload)
+                except OSError as e:
+                    pass
                 break
             elif tag == 0x00: # Padding
                 idx += 1

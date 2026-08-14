@@ -94,9 +94,9 @@
         .item-row:hover {
             background-color: var(--table-hover);
         }
-        .col-ip { flex: 0 0 45%; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 0.5rem; }
-        .col-reason { flex: 0 0 40%; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 0.5rem; }
-        .col-action { flex: 0 0 15%; max-width: 15%; text-align: right; }
+        .col-ip { flex: 0 1 180px; min-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 0.5rem; }
+        .col-reason { flex: 1 1 auto; min-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 0.5rem; }
+        .col-action { flex: 0 0 auto; min-width: max-content; text-align: right; }
         .btn-action {
             background-color: rgba(239, 68, 68, 0.1);
             color: #ef4444;
@@ -190,26 +190,53 @@
         <!-- Main Content (Scrollable Page Body) -->
         <main class="flex-1 p-6 space-y-6 max-w-[1700px] w-full mx-auto">
 
-            <!-- Custom Target Whitelist Bar -->
-            <div class="block-card space-y-4">
-                <h2 class="text-base font-bold heading-text flex items-center">
-                    <i class="fa-solid fa-shield-heart text-emerald-500 dark:text-emerald-400 mr-2"></i> Custom Target Whitelist (Never Alert / Never Block)
-                </h2>
-                <div class="flex flex-col sm:flex-row items-center gap-3">
-                    <input type="text" id="whitelist-target" placeholder="Enter IP Address (e.g. 1.2.3.4) or FQDN (e.g. vpn.company.com)" class="flex-1 custom-input border text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500 font-mono">
-                    <button onclick="addWhitelist()" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs px-5 py-2.5 rounded-xl font-semibold transition whitespace-nowrap flex items-center">
-                        <i class="fa-solid fa-plus mr-1.5"></i> Add to Whitelist
-                    </button>
-                </div>
-                <div id="whitelist-feedback" class="text-xs font-mono hidden"></div>
+            <!-- Custom Whitelist & Permanent Blacklist Bar -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Custom Target Whitelist Bar -->
+                <div class="block-card space-y-4">
+                    <h2 class="text-base font-bold heading-text flex items-center">
+                        <i class="fa-solid fa-shield-heart text-emerald-500 dark:text-emerald-400 mr-2"></i> Custom Whitelist (Never Alert / Never Block)
+                    </h2>
+                    <div class="flex flex-col sm:flex-row items-center gap-3">
+                        <input type="text" id="whitelist-target" placeholder="Enter IP or FQDN (e.g. 1.2.3.4)" class="flex-1 custom-input border text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500 font-mono">
+                        <button onclick="addWhitelist()" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs px-4 py-2.5 rounded-xl font-semibold transition whitespace-nowrap flex items-center">
+                            <i class="fa-solid fa-plus mr-1.5"></i> Add Whitelist
+                        </button>
+                    </div>
+                    <div id="whitelist-feedback" class="text-xs font-mono hidden"></div>
 
-                <!-- Whitelisted Items Table -->
-                <div class="mt-4 border-t border-bordercolor/60 pt-4">
-                    <h3 class="text-xs font-bold subtext mb-2 uppercase tracking-wider flex items-center">
-                        <i class="fa-solid fa-list-check subtext mr-1.5"></i> Active Whitelisted IPs & Domains (/etc/suricata/whitelist.config)
-                    </h3>
-                    <div id="whitelist-container" class="space-y-1.5">
-                        <div class="text-xs subtext py-2">No custom whitelist entries active</div>
+                    <!-- Whitelisted Items Table -->
+                    <div class="mt-4 border-t border-bordercolor/60 pt-4">
+                        <h3 class="text-xs font-bold subtext mb-2 uppercase tracking-wider flex items-center">
+                            <i class="fa-solid fa-list-check subtext mr-1.5"></i> Whitelisted IPs & Domains (/etc/suricata/whitelist.config)
+                        </h3>
+                        <div id="whitelist-container" class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            <div class="text-xs subtext py-2">No custom whitelist entries active</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom Permanent Blacklist Bar -->
+                <div class="block-card space-y-4">
+                    <h2 class="text-base font-bold heading-text flex items-center">
+                        <i class="fa-solid fa-ban text-rose-500 dark:text-rose-400 mr-2"></i> Permanent Blacklist (Always Block on Router)
+                    </h2>
+                    <div class="flex flex-col sm:flex-row items-center gap-3">
+                        <input type="text" id="blacklist-target" placeholder="Enter IP or FQDN (e.g. 198.51.100.1)" class="flex-1 custom-input border text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:border-rose-500 font-mono">
+                        <button onclick="addBlacklist()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs px-4 py-2.5 rounded-xl font-semibold transition whitespace-nowrap flex items-center">
+                            <i class="fa-solid fa-plus mr-1.5"></i> Add Blacklist
+                        </button>
+                    </div>
+                    <div id="blacklist-feedback" class="text-xs font-mono hidden"></div>
+
+                    <!-- Blacklisted Items Table -->
+                    <div class="mt-4 border-t border-bordercolor/60 pt-4">
+                        <h3 class="text-xs font-bold subtext mb-2 uppercase tracking-wider flex items-center">
+                            <i class="fa-solid fa-list-ul subtext mr-1.5"></i> Permanent Blacklisted Target IPs & Domains (/etc/suricata/blacklist.config)
+                        </h3>
+                        <div id="blacklist-container" class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            <div class="text-xs subtext py-2">No custom blacklist entries active</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -228,7 +255,7 @@
                         <div class="item-row table-head-row uppercase text-[10px] tracking-wider border mb-2 font-semibold">
                             <div class="col-ip">IP Address</div>
                             <div class="col-reason">Reason / Signature</div>
-                            <div class="col-action">Action</div>
+                            <div class="col-action">Quick Actions</div>
                         </div>
                         <div id="table-blocked-body" class="space-y-1">
                             <div class="py-4 text-center subtext text-xs">Loading active blocks...</div>
@@ -269,15 +296,16 @@
                     <table class="w-full text-left text-xs min-w-[700px]">
                         <thead class="table-head-row uppercase text-[10px] tracking-wider border-b">
                             <tr>
-                                <th class="py-3 px-3 w-[18%]">Timestamp</th>
-                                <th class="py-3 px-3 w-[18%]">Severity</th>
-                                <th class="py-3 px-3 w-[34%]">Signature Threat Name</th>
-                                <th class="py-3 px-3 w-[15%]">LAN Device IP</th>
-                                <th class="py-3 px-3 w-[15%]">Target IP</th>
+                                <th class="py-3 px-3 whitespace-nowrap">Timestamp</th>
+                                <th class="py-3 px-3 whitespace-nowrap">Severity</th>
+                                <th class="py-3 px-3">Signature Threat Name</th>
+                                <th class="py-3 px-3 whitespace-nowrap">LAN Device IP</th>
+                                <th class="py-3 px-3 whitespace-nowrap">Target IP</th>
+                                <th class="py-3 px-3 w-[220px] text-right whitespace-nowrap">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="table-threats-body" class="divide-y divide-slate-200 dark:divide-slate-800">
-                            <tr><td colspan="5" class="py-4 text-center subtext">Loading threat history...</td></tr>
+                            <tr><td colspan="6" class="py-4 text-center subtext">Loading threat history...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -310,18 +338,19 @@
                     </div>
                 </div>
                 <div class="w-full overflow-x-auto">
-                    <table class="w-full text-left text-xs min-w-[800px]">
+                    <table class="w-full text-left text-xs min-w-[750px]">
                         <thead class="table-head-row uppercase text-[10px] tracking-wider border-b">
                             <tr>
-                                <th class="py-3 px-3 w-[16%]">Timestamp</th>
-                                <th class="py-3 px-3 w-[14%]">Severity</th>
-                                <th class="py-3 px-3 w-[36%]">Signature / SID</th>
-                                <th class="py-3 px-3 w-[17%]">Source (IP:Port)</th>
-                                <th class="py-3 px-3 w-[17%]">Destination (IP:Port)</th>
+                                <th class="py-3 px-3 whitespace-nowrap">Timestamp</th>
+                                <th class="py-3 px-3 whitespace-nowrap">Severity</th>
+                                <th class="py-3 px-3">Signature / SID</th>
+                                <th class="py-3 px-3 whitespace-nowrap">Source (IP:Port)</th>
+                                <th class="py-3 px-3 whitespace-nowrap">Destination (IP:Port)</th>
+                                <th class="py-3 px-3 w-[220px] text-right whitespace-nowrap">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="table-events-body" class="divide-y divide-slate-200 dark:divide-slate-800">
-                            <tr><td colspan="5" class="py-4 text-center subtext">Loading live alert events...</td></tr>
+                            <tr><td colspan="6" class="py-4 text-center subtext">Loading live alert events...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -408,9 +437,15 @@
                             <div class="item-row">
                                 <div class="col-ip font-mono font-semibold ${item.is_v6 ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}" title="${item.address}">${item.address}</div>
                                 <div class="col-reason heading-text" title="${cleanComment}">${cleanComment}</div>
-                                <div class="col-action">
-                                    <button onclick="unblockIp('${item.address}', ${item.is_v6})" class="btn-action">
-                                        Unblock
+                                <div class="col-action flex items-center justify-end space-x-1.5">
+                                    <button onclick="unblockIp('${item.address}', ${item.is_v6})" class="bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 text-[10px] px-2 py-0.5 rounded transition whitespace-nowrap font-medium">
+                                        🔓 Unblock
+                                    </button>
+                                    <button onclick="addWhitelistTarget('${item.address}')" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded transition whitespace-nowrap font-medium">
+                                        🛡️ Whitelist
+                                    </button>
+                                    <button onclick="addBlacklistTarget('${item.address}')" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[10px] px-2 py-0.5 rounded transition whitespace-nowrap font-medium">
+                                        ⛔ Blacklist
                                     </button>
                                 </div>
                             </div>
@@ -429,6 +464,22 @@
                             <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400">${target}</span>
                             <button onclick="removeWhitelist('${target}')" class="bg-red-500/10 hover:bg-red-500/20 text-red-500 dark:text-red-400 border border-red-500/30 text-[10px] px-2.5 py-1 rounded transition whitespace-nowrap ml-3">
                                 Remove Whitelist
+                            </button>
+                        </div>
+                    `).join('');
+                }
+
+                // Render Blacklisted Items List
+                const blacklistContainer = document.getElementById('blacklist-container');
+                const blacklistItems = (data.blacklist_entries || []);
+                if(blacklistItems.length === 0) {
+                    blacklistContainer.innerHTML = '<div class="text-xs subtext py-1">No custom blacklist entries active (/etc/suricata/blacklist.config)</div>';
+                } else {
+                    blacklistContainer.innerHTML = blacklistItems.map(target => `
+                        <div class="flex items-center justify-between bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 px-3.5 py-2 rounded-xl text-xs">
+                            <span class="font-mono font-bold text-rose-600 dark:text-rose-400">${target}</span>
+                            <button onclick="removeBlacklist('${target}')" class="bg-red-500/10 hover:bg-red-500/20 text-red-500 dark:text-red-400 border border-red-500/30 text-[10px] px-2.5 py-1 rounded transition whitespace-nowrap ml-3">
+                                Remove Blacklist
                             </button>
                         </div>
                     `).join('');
@@ -455,24 +506,36 @@
                 // Render Recent Threats
                 const threatsTbody = document.getElementById('table-threats-body');
                 if(data.recent_threats.length === 0) {
-                    threatsTbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center subtext">No active threat events in the last 5 minutes</td></tr>';
+                    threatsTbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center subtext">No active threat events in the last 5 minutes</td></tr>';
                 } else {
                     threatsTbody.innerHTML = data.recent_threats.map(t => `
                         <tr class="hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors">
-                            <td class="py-3 px-3 subtext font-mono text-[11px] whitespace-nowrap">${t.timestamp}</td>
-                            <td class="py-3 px-3 whitespace-nowrap">
+                            <td class="py-2.5 px-3 subtext font-mono text-[11px] whitespace-nowrap">${t.timestamp}</td>
+                            <td class="py-2.5 px-3 whitespace-nowrap">
                                 ${t.severity === 1 
                                     ? '<span class="bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 px-2 py-0.5 rounded text-[10px] font-bold">Level 1 (High)</span>' 
                                     : '<span class="bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-bold">Level 2 (Medium)</span>'}
                             </td>
-                            <td class="py-3 px-3 font-semibold heading-text">
+                            <td class="py-2.5 px-3 font-semibold heading-text">
                                 <div class="max-w-[300px] truncate" title="${t.signature}">${t.signature}</div>
+                                <div class="text-[10px] subtext font-mono font-normal">SID ${t.sig_id || 'N/A'}</div>
                             </td>
-                            <td class="py-3 px-3 font-mono text-emerald-600 dark:text-emerald-400">
-                                <div class="max-w-[180px] truncate" title="${t.lan_ip}">${t.lan_ip}</div>
+                            <td class="py-2.5 px-3 font-mono text-emerald-600 dark:text-emerald-400">
+                                <div class="max-w-[150px] truncate" title="${t.lan_ip}">${t.lan_ip}</div>
                             </td>
-                            <td class="py-3 px-3 font-mono text-blue-600 dark:text-blue-400">
-                                <div class="max-w-[180px] truncate" title="${t.target_ip}">${t.target_ip}</div>
+                            <td class="py-2.5 px-3 font-mono text-blue-600 dark:text-blue-400">
+                                <div class="max-w-[150px] truncate" title="${t.target_ip}">${t.target_ip}</div>
+                            </td>
+                            <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                <div class="flex items-center justify-end space-x-1">
+                                    <button onclick="addWhitelistTarget('${t.target_ip}')" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] px-1.5 py-0.5 rounded font-medium" title="Whitelist Target IP">
+                                        🛡️ Whitelist
+                                    </button>
+                                    <button onclick="addBlacklistTarget('${t.target_ip}')" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[10px] px-1.5 py-0.5 rounded font-medium" title="Blacklist Target IP">
+                                        ⛔ Blacklist
+                                    </button>
+                                    ${t.sig_id ? `<button onclick="suppressRuleSid('${t.sig_id}')" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0.5 rounded font-medium" title="Suppress Rule SID ${t.sig_id}">🔕 Suppress</button>` : ''}
+                                </div>
                             </td>
                         </tr>
                     `).join('');
@@ -529,6 +592,120 @@
                     fetchData();
                 } else {
                     showFeedback(`❌ Error removing ${target}`, false);
+                }
+            } catch(e) {
+                showFeedback(`❌ Request failed: ${e}`, false);
+            }
+        }
+
+        async function addBlacklist() {
+            const target = document.getElementById('blacklist-target').value.trim();
+            if(!target) {
+                alert('Please enter an IP address or FQDN (domain name)');
+                return;
+            }
+
+            const feedback = document.getElementById('blacklist-feedback');
+            feedback.className = 'text-xs font-mono text-amber-500 dark:text-amber-400';
+            feedback.innerText = `Adding ${target} to /etc/suricata/blacklist.config & blocking on Router...`;
+            feedback.classList.remove('hidden');
+            
+            try {
+                const res = await fetch('/api/blacklist/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target})
+                });
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('blacklist-target').value = '';
+                    showFeedback(`✅ Success: ${target} added to Permanent Blacklist & Blocked!`, true);
+                    fetchData();
+                } else {
+                    showFeedback(`❌ Error: ${data.message}`, false);
+                }
+            } catch(e) {
+                showFeedback(`❌ Request failed: ${e}`, false);
+            }
+        }
+
+        async function removeBlacklist(target) {
+            if(!confirm(`Remove ${target} from Blacklist (/etc/suricata/blacklist.config) and unblock from MikroTik?`)) return;
+            try {
+                const res = await fetch('/api/blacklist/remove', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target})
+                });
+                const data = await res.json();
+                if(data.success) {
+                    showFeedback(`🗑️ Removed ${target} from Blacklist & Unblocked`, true);
+                    fetchData();
+                } else {
+                    showFeedback(`❌ Error removing ${target}`, false);
+                }
+            } catch(e) {
+                showFeedback(`❌ Request failed: ${e}`, false);
+            }
+        }
+
+        async function addWhitelistTarget(target) {
+            if (!target) return;
+            if (!confirm(`Add ${target} to Whitelist (/etc/suricata/whitelist.config)?`)) return;
+            try {
+                const res = await fetch('/api/whitelist/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showFeedback(`🛡️ Added ${target} to Whitelist`, true);
+                    fetchData();
+                } else {
+                    showFeedback(`❌ Error: ${data.message}`, false);
+                }
+            } catch(e) {
+                showFeedback(`❌ Request failed: ${e}`, false);
+            }
+        }
+
+        async function addBlacklistTarget(target) {
+            if (!target) return;
+            if (!confirm(`Add ${target} to Permanent Blacklist (/etc/suricata/blacklist.config) and block on router?`)) return;
+            try {
+                const res = await fetch('/api/blacklist/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showFeedback(`⛔ Added ${target} to Blacklist & Blocked`, true);
+                    fetchData();
+                } else {
+                    showFeedback(`❌ Error: ${data.message}`, false);
+                }
+            } catch(e) {
+                showFeedback(`❌ Request failed: ${e}`, false);
+            }
+        }
+
+        async function suppressRuleSid(sid) {
+            if (!sid) return;
+            if (!confirm(`Permanently suppress Rule SID ${sid} in Suricata (/etc/suricata/threshold.config)?`)) return;
+            try {
+                const res = await fetch('/api/suppress', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({sid})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showFeedback(`🔕 Suppressed Rule SID ${sid}`, true);
+                    fetchData();
+                } else {
+                    showFeedback(`❌ Error: ${data.message}`, false);
                 }
             } catch(e) {
                 showFeedback(`❌ Request failed: ${e}`, false);
@@ -637,7 +814,18 @@
                                 <div class="max-w-[190px] truncate" title="${e.src_ip}${srcPortStr}">${e.src_ip}${srcPortStr}</div>
                             </td>
                             <td class="py-2.5 px-3 font-mono text-cyan-600 dark:text-cyan-400 text-xs">
-                                <div class="max-w-[190px] truncate" title="${e.dest_ip}${destPortStr}">${e.dest_ip}${destPortStr}</div>
+                                <div class="max-w-[150px] truncate" title="${e.dest_ip}${destPortStr}">${e.dest_ip}${destPortStr}</div>
+                            </td>
+                            <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                <div class="flex items-center justify-end space-x-1">
+                                    <button onclick="addWhitelistTarget('${e.dest_ip}')" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] px-1.5 py-0.5 rounded font-medium" title="Whitelist Destination IP ${e.dest_ip}">
+                                        🛡️ Whitelist
+                                    </button>
+                                    <button onclick="addBlacklistTarget('${e.dest_ip}')" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[10px] px-1.5 py-0.5 rounded font-medium" title="Blacklist Destination IP ${e.dest_ip}">
+                                        ⛔ Blacklist
+                                    </button>
+                                    ${e.sig_id ? `<button onclick="suppressRuleSid('${e.sig_id}')" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0.5 rounded font-medium" title="Suppress Rule SID ${e.sig_id}">🔕 Suppress</button>` : ''}
+                                </div>
                             </td>
                         </tr>
                     `;
