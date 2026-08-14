@@ -10,11 +10,9 @@ A high-performance **Suricata IDS/IPS Automated Defense System** that bridges Su
 It parses real-time Suricata `eve.json` alert streams, automatically injects threat IPs into MikroTik firewall address-lists (IPS mode), provides instant Telegram inline actions (Block/Unblock/Suppress), and features a rich, responsive Web UI Dashboard for real-time monitoring and rule tuning.
 
 
-## 🖼️ System Screenshots & Previews
+## 🖼️ System Preview
 
-| MikroTik Configuration | Threat Rule Updates | VLAN Setup | Suricata Engine |
-| :---: | :---: | :---: | :---: |
-| ![MikroTik Config](docs/images/mikrotik-sentinal/Mikrotik.png) | ![Rule Updates](docs/images/mikrotik-sentinal/Update.png) | ![VLAN Setup](docs/images/mikrotik-sentinal/Vlans.png) | ![Suricata Engine](docs/images/suricata/Suricata.png) |
+![Suricata Engine](docs/images/suricata/Suricata.png)
 
 ---
 
