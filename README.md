@@ -16,6 +16,37 @@ It parses real-time Suricata `eve.json` alert streams, automatically injects thr
 
 ---
 
+## 🏗️ 3-Tier System Architecture & Flow
+
+```text
++------------------+         TZSP UDP 37008        +-----------------------+
+|  MikroTik Router | ----------------------------> |  Suricata IDS Engine  |
+|  (/tool/sniffer) |                               |    (br-ids / PCAP)    |
++------------------+                               +-----------------------+
+         ^                                                     |
+         | (API port 8728)                                     v
+         | (Adds/Removes                                  eve.json Alerts
+         |  Suricata-Blocked)                                  |
+         |                                                     v
++--------------------------------------------------------------------------+
+|                 Suricata Sentinel Daemon (daemon.py)                     |
+|                                                                          |
+|   1. Filters internal-to-internal LAN noise & suppressed rules (SIDs)     |
+|   2. Manages Dynamic Whitelists (/etc/suricata/whitelist.config)          |
+|   3. Manages Permanent Blacklists (/etc/suricata/blacklist.config)        |
+|   4. Serves Web Command Center UI (Port 8888)                             |
+|   5. Pushes Interactive Alerts & Processes Webhook Callbacks              |
++--------------------------------------------------------------------------+
+          |                                                       |
+          v                                                       v
++------------------+                                   +-------------------+
+|  Telegram Bot    |                                   |  Web UI Dashboard |
+| (Inline Buttons) |                                   |    (Port 8888)    |
++------------------+                                   +-------------------+
+```
+
+---
+
 ## ✨ System Architecture & Features
 
 ### 🛡️ 1. Active Threat Prevention (IPS Engine)
@@ -241,6 +272,28 @@ systemctl enable --now suricata-update.timer
 - User signature suppressions created via Telegram button or Web UI are saved to `/etc/suricata/threshold.config`.
 - Dynamic IP and target whitelists are saved to `/etc/suricata/whitelist.config`.
 - Both configuration files persist untouched across rule updates and engine restarts.
+
+---
+
+## 🛠️ IT Administration & Operations Cheat Sheet
+
+### 1. Handling False Positives (Noisy Rules)
+When benign network traffic (e.g. VPN tunnels, internal monitoring tools) triggers alerts:
+* **In Telegram:** Tap **`[ 🔕 Suppress Rule SID ]`**.
+* **In Web UI:** Click **`[ 🔕 Suppress ]`** next to any threat entry.
+* **Result:** Appends `suppress gen_id 1, sig_id <SID>` to `/etc/suricata/threshold.config`, reloads Suricata rules, and unblocks any target IP on MikroTik.
+
+### 2. Handling Safe Hosts & Gateways
+When an external partner IP or cloud service should never be blocked:
+* **In Telegram:** Click **`[ 🛡️ Whitelist ]`** or run `/whitelist`.
+* **In Web UI:** Enter the target IP into the **Custom Whitelist** card and click **Add Whitelist**.
+* **Result:** Saves target to `/etc/suricata/whitelist.config`. Future traffic to/from this target will **never trigger automated blocks or alerts**.
+
+### 3. Enforcing Permanent Blacklists
+When an aggressive scanner or malicious actor IP needs permanent mitigation:
+* **In Telegram:** Run `/blacklist` or click **`[ ⛔ Blacklist ]`**.
+* **In Web UI:** Enter target IP into the **Permanent Blacklist** card and click **Add Blacklist**.
+* **Result:** Saves target to `/etc/suricata/blacklist.config` and **immediately enforces a drop rule on MikroTik**.
 
 ---
 
