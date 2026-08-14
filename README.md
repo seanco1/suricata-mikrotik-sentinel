@@ -1,5 +1,10 @@
 # Suricata MikroTik & Telegram Sentinel 🛡️⚡
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![RouterOS v7](https://img.shields.io/badge/RouterOS-v7.x-orange.svg)](https://mikrotik.com/download)
+[![Suricata IDS](https://img.shields.io/badge/Suricata-IDS%2FIPS-red.svg)](https://suricata.io/)
+
 A high-performance **Suricata IDS/IPS Automated Defense System** that bridges Suricata intrusion detection with MikroTik RouterOS firewalls and interactive Telegram Bot alerts.
 
 It parses real-time Suricata `eve.json` alert streams, automatically injects threat IPs into MikroTik firewall address-lists (IPS mode), provides instant Telegram inline actions (Block/Unblock/Suppress), and features a rich, responsive Web UI Dashboard for real-time monitoring and rule tuning.
