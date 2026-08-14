@@ -7,11 +7,20 @@ import html
 import routeros_api
 import ipaddress
 import socket
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load Master Environment Configuration
+master_env_path = Path("/root/.config/env/master.env")
+if master_env_path.exists():
+    load_dotenv(dotenv_path=master_env_path)
+
+# Load Local .env Overrides if present
+load_dotenv(override=True)
+
 from threading import Thread
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
-from dotenv import load_dotenv
-
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 # Config

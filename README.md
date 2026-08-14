@@ -162,6 +162,70 @@ systemctl enable --now suricata-mikrotik.service
 
 ---
 
+### Step 6: Automated Suricata Threat Rule Updates & Maintenance 🔄
+
+To keep threat intelligence up-to-date against newly discovered CVEs and attack signatures, set up automated daily rule updates using `suricata-update` and systemd timers.
+
+#### 1. Test Manual Rule Update
+Run `suricata-update` to download the latest Emerging Threats (ET Open) ruleset:
+
+```bash
+suricata-update
+suricatasc -c reload-rules
+```
+
+*(Optional)* Enable additional rule sources (e.g., OISF, Abuse.ch, PT Research):
+
+```bash
+suricata-update list-sources
+suricata-update enable-source et/open
+suricata-update
+```
+
+#### 2. Configure Daily Automated Rule Update Timer
+
+Create `/etc/systemd/system/suricata-update.service`:
+
+```ini
+[Unit]
+Description=Suricata Threat Rules Update
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/suricata-update --quiet
+ExecStartPost=/bin/systemctl restart suricata.service
+```
+
+Create `/etc/systemd/system/suricata-update.timer`:
+
+```ini
+[Unit]
+Description=Daily Suricata Threat Rules Update Timer
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable and start the update timer:
+
+```bash
+systemctl daemon-reload
+systemctl enable --now suricata-update.timer
+```
+
+#### 3. Custom Rule & Threshold Persistence Across Updates
+- User signature suppressions created via Telegram button or Web UI are saved to `/etc/suricata/threshold.config`.
+- Dynamic IP and target whitelists are saved to `/etc/suricata/whitelist.config`.
+- Both configuration files persist untouched across rule updates and engine restarts.
+
+---
+
 ## 📡 API & Webhook Endpoints
 
 - `GET /`: Modern Web UI Security Dashboard.
@@ -177,3 +241,4 @@ systemctl enable --now suricata-mikrotik.service
 ## 📄 License
 
 [MIT](LICENSE) - Free to use and modify!
+
