@@ -36,6 +36,7 @@ MIKROTIK_HOST = os.environ.get("MIKROTIK_HOST", "172.18.141.1")
 MIKROTIK_USER = os.environ.get("MIKROTIK_USER", "admin")
 MIKROTIK_PASS = os.environ.get("MIKROTIK_PASS", "password")
 BLOCK_TIMEOUT = os.environ.get("BLOCK_TIMEOUT", "01:00:00")  # 1 hour timeout on MikroTik
+IPV6_POOL_NAME = os.environ.get("IPV6_POOL_NAME", "IPv6 - ISP Delegation")
 WEB_PORT = int(os.environ.get("WEB_PORT", 8888))
 DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "http://localhost:8888/")
 
@@ -301,15 +302,22 @@ def refresh_mikrotik_prefixes():
                 print(f"Failed to fetch /ip/cloud public address: {e}", flush=True)
                 
             pools = api.get_resource('/ipv6/pool').get()
+            isp_prefixes = []
+            other_prefixes = []
             for p in pools:
+                pool_name = p.get('name', '')
                 prefix_str = p.get('prefix') or p.get('actual-prefix')
                 if prefix_str:
                     clean_prefix = prefix_str.split(',')[0].strip()
                     try:
                         net = ipaddress.ip_network(clean_prefix, strict=False)
-                        new_prefixes.append(net)
+                        if pool_name == IPV6_POOL_NAME:
+                            isp_prefixes.append(net)
+                        else:
+                            other_prefixes.append(net)
                     except Exception:
                         pass
+            new_prefixes = isp_prefixes + other_prefixes
                         
             addrs = api.get_resource('/ipv6/address').get()
             for a in addrs:
