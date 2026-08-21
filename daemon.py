@@ -456,7 +456,7 @@ def suppress_signature_in_suricata(sig_id, sig_name=None):
         if not sig_name or sig_name == f"Signature SID {sig_id}":
             sig_name = get_signature_name_by_sid(sig_id_int)
             
-        suppress_line = f"suppress gen_id 1, sig_id {sig_id_int}  # user: {sig_name}\n"
+        suppress_line = f"\n# user: {sig_name}\nsuppress gen_id 1, sig_id {sig_id_int}\n"
         existing = ""
         if os.path.exists(THRESHOLD_CONF_PATH):
             with open(THRESHOLD_CONF_PATH, "r") as f:
@@ -481,12 +481,20 @@ def suppress_signature_in_suricata(sig_id, sig_name=None):
     return False, f"Signature SID {sig_id}"
 
 def unsuppress_signature_in_suricata(sig_id):
-    """Remove a suppression line from threshold.config and reload Suricata."""
+    """Remove a suppression line and its preceding comment from threshold.config and reload Suricata."""
     try:
         if os.path.exists(THRESHOLD_CONF_PATH):
             with open(THRESHOLD_CONF_PATH, "r") as f:
                 lines = f.readlines()
-            new_lines = [l for l in lines if f"sig_id {sig_id}" not in l]
+            new_lines = []
+            skip_next = False
+            for i, line in enumerate(lines):
+                if f"sig_id {sig_id}" in line:
+                    # Remove preceding line from new_lines if it was a comment line
+                    if new_lines and new_lines[-1].strip().startswith("#"):
+                        new_lines.pop()
+                    continue
+                new_lines.append(line)
             with open(THRESHOLD_CONF_PATH, "w") as f:
                 f.writelines(new_lines)
             print(f"[UNSUPPRESS] Removed signature {sig_id} from {THRESHOLD_CONF_PATH}", flush=True)
@@ -825,10 +833,55 @@ def follow_eve_log():
             
     print(f"Tailing {EVE_LOG_PATH} for alerts...", flush=True)
     
-    with open(EVE_LOG_PATH, "r") as f:
-        f.seek(0, os.SEEK_END)
+    current_file = None
+    current_inode = None
+    
+    try:
         while True:
-            line = f.readline()
+            if not os.path.exists(EVE_LOG_PATH):
+                if current_file:
+                    try:
+                        current_file.close()
+                    except Exception:
+                        pass
+                    current_file = None
+                    current_inode = None
+                time.sleep(1)
+                continue
+
+            try:
+                stat_info = os.stat(EVE_LOG_PATH)
+            except OSError:
+                time.sleep(0.5)
+                continue
+
+            # Check if file needs to be opened or reopened (inode change / rotation)
+            if current_file is None or stat_info.st_ino != current_inode:
+                if current_file:
+                    try:
+                        current_file.close()
+                    except Exception:
+                        pass
+                try:
+                    current_file = open(EVE_LOG_PATH, "r")
+                    current_inode = stat_info.st_ino
+                    current_file.seek(0, os.SEEK_END)
+                    print(f"[TAILER] Opened {EVE_LOG_PATH} (inode: {current_inode})", flush=True)
+                except Exception as e:
+                    print(f"[TAILER] Error opening {EVE_LOG_PATH}: {e}", flush=True)
+                    time.sleep(1)
+                    continue
+
+            # Check for copytruncate (file size smaller than current read offset)
+            try:
+                current_pos = current_file.tell()
+                if stat_info.st_size < current_pos:
+                    print(f"[TAILER] Detected file truncation ({stat_info.st_size} < {current_pos}), rewinding to start...", flush=True)
+                    current_file.seek(0, os.SEEK_SET)
+            except Exception as e:
+                print(f"[TAILER] Error checking file position: {e}", flush=True)
+
+            line = current_file.readline()
             if not line:
                 time.sleep(0.5)
                 continue
@@ -983,6 +1036,12 @@ def follow_eve_log():
                     if is_will_block:
                         block_on_mikrotik(target_ip, f"Suricata: {signature}")
             except Exception as err:
+                pass
+    finally:
+        if current_file:
+            try:
+                current_file.close()
+            except Exception:
                 pass
 
 # --- Flask Web Dashboard Routes ---
